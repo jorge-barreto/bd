@@ -199,8 +199,43 @@ func (s *Store) GetConfig(key string) (string, error) {
 	return value, err
 }
 
+var validTypes = map[string]bool{
+	"task": true, "bug": true, "feature": true, "chore": true, "epic": true,
+}
+
+var validStatuses = map[string]bool{
+	"open": true, "in_progress": true, "closed": true,
+}
+
+func validateType(t string) error {
+	if !validTypes[t] {
+		return fmt.Errorf("invalid issue_type %q (must be task, bug, feature, chore, or epic)", t)
+	}
+	return nil
+}
+
+func validatePriority(p int) error {
+	if p < 0 || p > 4 {
+		return fmt.Errorf("invalid priority %d (must be 0-4)", p)
+	}
+	return nil
+}
+
+func validateStatus(s string) error {
+	if !validStatuses[s] {
+		return fmt.Errorf("invalid status %q (must be open, in_progress, or closed)", s)
+	}
+	return nil
+}
+
 // CreateItem inserts a new item with the given fields.
 func (s *Store) CreateItem(id, title, description, issueType string, priority int, parentID, owner string) error {
+	if err := validateType(issueType); err != nil {
+		return err
+	}
+	if err := validatePriority(priority); err != nil {
+		return err
+	}
 	now := time.Now().UTC().Format(time.RFC3339)
 	_, err := s.db.Exec(
 		`INSERT INTO items (id, title, description, issue_type, status, priority, parent_id, owner, created_at, updated_at)
@@ -247,6 +282,25 @@ func (s *Store) UpdateItem(id string, fields map[string]string) error {
 	for k, v := range fields {
 		if !allowed[k] {
 			return fmt.Errorf("unknown field: %s", k)
+		}
+		if k == "status" {
+			if err := validateStatus(v); err != nil {
+				return err
+			}
+		}
+		if k == "issue_type" {
+			if err := validateType(v); err != nil {
+				return err
+			}
+		}
+		if k == "priority" {
+			p, err := strconv.Atoi(v)
+			if err != nil {
+				return fmt.Errorf("invalid priority %q: not a number", v)
+			}
+			if err := validatePriority(p); err != nil {
+				return err
+			}
 		}
 		sets = append(sets, k+" = ?")
 		args = append(args, v)

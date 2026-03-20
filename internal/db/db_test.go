@@ -485,6 +485,53 @@ func TestNotes(t *testing.T) {
 	}
 }
 
+func TestCreateItemValidatesType(t *testing.T) {
+	store := testStore(t)
+	err := store.CreateItem("t-aaa", "Bad", "", "invalid_type", 2, "", "")
+	if err == nil {
+		t.Fatal("expected error for invalid issue_type")
+	}
+}
+
+func TestCreateItemValidatesPriority(t *testing.T) {
+	store := testStore(t)
+	err := store.CreateItem("t-aaa", "Bad", "", "task", 99, "", "")
+	if err == nil {
+		t.Fatal("expected error for priority out of range")
+	}
+	err = store.CreateItem("t-bbb", "Bad", "", "task", -1, "", "")
+	if err == nil {
+		t.Fatal("expected error for negative priority")
+	}
+}
+
+func TestUpdateItemValidatesStatus(t *testing.T) {
+	store := testStore(t)
+	store.CreateItem("t-aaa", "A", "", "task", 2, "", "")
+
+	err := store.UpdateItem("t-aaa", map[string]string{"status": "invalid"})
+	if err == nil {
+		t.Fatal("expected error for invalid status")
+	}
+
+	// Valid statuses should work
+	for _, s := range []string{"open", "in_progress", "closed"} {
+		if err := store.UpdateItem("t-aaa", map[string]string{"status": s}); err != nil {
+			t.Errorf("status %q should be valid: %v", s, err)
+		}
+	}
+}
+
+func TestUpdateItemValidatesType(t *testing.T) {
+	store := testStore(t)
+	store.CreateItem("t-aaa", "A", "", "task", 2, "", "")
+
+	err := store.UpdateItem("t-aaa", map[string]string{"issue_type": "nope"})
+	if err == nil {
+		t.Fatal("expected error for invalid issue_type")
+	}
+}
+
 func TestReadyItemsNoBlockers(t *testing.T) {
 	store := testStore(t)
 	store.CreateItem("orc-aaa", "A", "", "task", 2, "", "")
