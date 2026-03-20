@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"runtime/debug"
 	"path/filepath"
 	"strings"
 
@@ -14,13 +15,18 @@ import (
 	"github.com/urfave/cli/v3"
 )
 
-var version = "dev"
+func getVersion() string {
+	if info, ok := debug.ReadBuildInfo(); ok && info.Main.Version != "" && info.Main.Version != "(devel)" {
+		return info.Main.Version
+	}
+	return "dev"
+}
 
 func main() {
 	app := &cli.Command{
 		Name:    "bd",
 		Usage:   "A fast, minimal work item tracker",
-		Version: version,
+		Version: getVersion(),
 		Flags: []cli.Flag{
 			&cli.BoolFlag{Name: "all", Usage: "show closed items"},
 		},
