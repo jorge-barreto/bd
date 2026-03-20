@@ -56,7 +56,7 @@ Lives at `~/work/bd`. Binary is `bd`. Same command surface as the original where
 | `key` | TEXT PK | |
 | `value` | TEXT | |
 
-Stores: `prefix` (default "orc"), `owner` (default from git config).
+Stores: `prefix` (default: name of directory where `bd init` is run), `owner` (default from git config).
 
 ## ID Generation
 
