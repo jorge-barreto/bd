@@ -14,10 +14,13 @@ import (
 	"github.com/urfave/cli/v3"
 )
 
+var version = "dev"
+
 func main() {
 	app := &cli.Command{
-		Name:  "bd",
-		Usage: "A fast, minimal work item tracker",
+		Name:    "bd",
+		Usage:   "A fast, minimal work item tracker",
+		Version: version,
 		Flags: []cli.Flag{
 			&cli.BoolFlag{Name: "all", Usage: "show closed items"},
 		},
