@@ -48,7 +48,7 @@ func Dashboard(store *db.Store, showAll bool) error {
 				}
 			}
 
-			fmt.Printf("%s %s  %d/%d open\n", statusIcon(epic.Status), epic.Title, openCount, totalCount)
+			fmt.Printf("%s %s (%s)  %d/%d open\n", statusIcon(epic.Status), epic.Title, epic.ID, openCount, totalCount)
 
 			// Show children
 			var visibleChildren []model.Item
