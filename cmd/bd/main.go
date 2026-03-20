@@ -22,6 +22,10 @@ func main() {
 			&cli.BoolFlag{Name: "all", Usage: "show closed items"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
+			// If user passed an argument that didn't match a subcommand, error
+			if cmd.NArg() > 0 {
+				return fmt.Errorf("unknown command %q. Run 'bd help' for usage", cmd.Args().First())
+			}
 			return dashboardAction(ctx, cmd)
 		},
 		Commands: []*cli.Command{
