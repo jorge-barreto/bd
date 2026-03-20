@@ -453,6 +453,8 @@ func (s *Store) ListItems(f ListFilters) ([]model.Item, error) {
 	if f.Status != "" {
 		conditions = append(conditions, "status = ?")
 		args = append(args, f.Status)
+	} else if !f.All {
+		conditions = append(conditions, "status != 'closed'")
 	}
 	if f.Type != "" {
 		conditions = append(conditions, "issue_type = ?")

@@ -330,6 +330,25 @@ func TestListItemsAll(t *testing.T) {
 	}
 }
 
+func TestListItemsDefaultHidesClosed(t *testing.T) {
+	store := testStore(t)
+	store.CreateItem("orc-aaa", "Open", "", "task", 2, "", "")
+	store.CreateItem("orc-bbb", "Closed", "", "task", 2, "", "")
+	store.CloseItem("orc-bbb")
+
+	// Default (All=false) should hide closed
+	items, _ := store.ListItems(ListFilters{})
+	if len(items) != 1 {
+		t.Errorf("default list should hide closed, got %d items", len(items))
+	}
+
+	// All=true should show everything
+	items, _ = store.ListItems(ListFilters{All: true})
+	if len(items) != 2 {
+		t.Errorf("list --all should show 2 items, got %d", len(items))
+	}
+}
+
 func TestListItemsFilterByStatus(t *testing.T) {
 	store := testStore(t)
 	store.CreateItem("orc-aaa", "Open", "", "task", 2, "", "")
