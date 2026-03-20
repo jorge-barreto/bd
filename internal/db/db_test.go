@@ -3,6 +3,7 @@ package db
 import (
 	"os"
 	"path/filepath"
+	"regexp"
 	"testing"
 )
 
@@ -89,5 +90,140 @@ func TestFindDBErrorsWhenNotFound(t *testing.T) {
 	_, err := FindDB(dir)
 	if err == nil {
 		t.Fatal("expected error when no .beads directory found")
+	}
+}
+
+// helper to create a fresh store for tests
+func testStore(t *testing.T) *Store {
+	t.Helper()
+	store, err := Init(t.TempDir())
+	if err != nil {
+		t.Fatalf("Init failed: %v", err)
+	}
+	t.Cleanup(func() { store.Close() })
+	return store
+}
+
+func TestGenerateIDTopLevel(t *testing.T) {
+	store := testStore(t)
+	store.SetConfig("prefix", "orc")
+
+	id, err := store.GenerateID("")
+	if err != nil {
+		t.Fatalf("GenerateID failed: %v", err)
+	}
+
+	// Should match pattern: orc-{3 alphanum}
+	matched, _ := regexp.MatchString(`^orc-[a-z0-9]{3}$`, id)
+	if !matched {
+		t.Errorf("ID %q does not match pattern orc-XXX", id)
+	}
+}
+
+func TestGenerateIDChild(t *testing.T) {
+	store := testStore(t)
+	store.SetConfig("prefix", "orc")
+
+	// Create a parent item first
+	parentID, _ := store.GenerateID("")
+	store.CreateItem(parentID, "Parent", "", "epic", 2, "", "")
+
+	// First child should be parentID.1
+	childID, err := store.GenerateID(parentID)
+	if err != nil {
+		t.Fatalf("GenerateID child failed: %v", err)
+	}
+	if childID != parentID+".1" {
+		t.Errorf("first child ID = %q, want %q", childID, parentID+".1")
+	}
+
+	// Create the child, then next should be .2
+	store.CreateItem(childID, "Child 1", "", "task", 2, parentID, "")
+	childID2, _ := store.GenerateID(parentID)
+	if childID2 != parentID+".2" {
+		t.Errorf("second child ID = %q, want %q", childID2, parentID+".2")
+	}
+}
+
+func TestCreateAndGetItem(t *testing.T) {
+	store := testStore(t)
+
+	err := store.CreateItem("orc-abc", "Test Task", "A description", "task", 1, "", "alice@example.com")
+	if err != nil {
+		t.Fatalf("CreateItem failed: %v", err)
+	}
+
+	item, err := store.GetItem("orc-abc")
+	if err != nil {
+		t.Fatalf("GetItem failed: %v", err)
+	}
+
+	if item.ID != "orc-abc" {
+		t.Errorf("ID = %q, want %q", item.ID, "orc-abc")
+	}
+	if item.Title != "Test Task" {
+		t.Errorf("Title = %q, want %q", item.Title, "Test Task")
+	}
+	if item.Description != "A description" {
+		t.Errorf("Description = %q, want %q", item.Description, "A description")
+	}
+	if item.IssueType != "task" {
+		t.Errorf("IssueType = %q, want %q", item.IssueType, "task")
+	}
+	if item.Status != "open" {
+		t.Errorf("Status = %q, want %q", item.Status, "open")
+	}
+	if item.Priority != 1 {
+		t.Errorf("Priority = %d, want %d", item.Priority, 1)
+	}
+	if item.Owner != "alice@example.com" {
+		t.Errorf("Owner = %q, want %q", item.Owner, "alice@example.com")
+	}
+	if item.CreatedAt == "" {
+		t.Error("CreatedAt should not be empty")
+	}
+	if item.UpdatedAt == "" {
+		t.Error("UpdatedAt should not be empty")
+	}
+}
+
+func TestGetItemNotFound(t *testing.T) {
+	store := testStore(t)
+
+	_, err := store.GetItem("nonexistent")
+	if err == nil {
+		t.Fatal("expected error for nonexistent item")
+	}
+}
+
+func TestConfigGetSet(t *testing.T) {
+	store := testStore(t)
+
+	store.SetConfig("prefix", "test")
+	val, err := store.GetConfig("prefix")
+	if err != nil {
+		t.Fatalf("GetConfig failed: %v", err)
+	}
+	if val != "test" {
+		t.Errorf("GetConfig = %q, want %q", val, "test")
+	}
+
+	// Update existing key
+	store.SetConfig("prefix", "updated")
+	val, _ = store.GetConfig("prefix")
+	if val != "updated" {
+		t.Errorf("after update, GetConfig = %q, want %q", val, "updated")
+	}
+}
+
+func TestGetConfigDefault(t *testing.T) {
+	store := testStore(t)
+
+	val, err := store.GetConfig("nonexistent")
+	if err != nil {
+		t.Fatalf("GetConfig failed: %v", err)
+	}
+	if val != "" {
+		t.Errorf("GetConfig for missing key = %q, want empty", val)
 	}
 }
