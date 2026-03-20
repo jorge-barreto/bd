@@ -377,6 +377,35 @@ func (s *Store) GetDeps(itemID string) ([]model.Dependency, error) {
 	return deps, nil
 }
 
+// AddRelation adds a relation between two items.
+func (s *Store) AddRelation(fromID, toID, relType string) error {
+	_, err := s.db.Exec(
+		"INSERT INTO relations (from_id, to_id, rel_type) VALUES (?, ?, ?)",
+		fromID, toID, relType,
+	)
+	return err
+}
+
+// GetRelations returns all relations involving the given item.
+func (s *Store) GetRelations(itemID string) ([]model.Relation, error) {
+	rows, err := s.db.Query(
+		"SELECT from_id, to_id, rel_type FROM relations WHERE from_id = ? OR to_id = ?",
+		itemID, itemID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var rels []model.Relation
+	for rows.Next() {
+		var r model.Relation
+		rows.Scan(&r.FromID, &r.ToID, &r.RelType)
+		rels = append(rels, r)
+	}
+	return rels, nil
+}
+
 // AddNote appends a note to an item.
 func (s *Store) AddNote(itemID, content string) error {
 	now := time.Now().UTC().Format(time.RFC3339)

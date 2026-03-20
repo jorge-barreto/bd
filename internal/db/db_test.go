@@ -398,3 +398,70 @@ func TestSearchItems(t *testing.T) {
 		t.Errorf("search 'auth' expected 2 results, got %d", len(items))
 	}
 }
+
+func TestAddAndRemoveDep(t *testing.T) {
+	store := testStore(t)
+	store.CreateItem("orc-aaa", "A", "", "task", 2, "", "")
+	store.CreateItem("orc-bbb", "B", "", "task", 2, "", "")
+
+	// B is blocked by A
+	err := store.AddDep("orc-bbb", "orc-aaa")
+	if err != nil {
+		t.Fatalf("AddDep failed: %v", err)
+	}
+
+	blockers, _ := store.GetBlockedBy("orc-bbb")
+	if len(blockers) != 1 || blockers[0].BlockerID != "orc-aaa" {
+		t.Errorf("expected A to block B, got %v", blockers)
+	}
+
+	dependents, _ := store.GetDeps("orc-aaa")
+	if len(dependents) != 1 || dependents[0].BlockedID != "orc-bbb" {
+		t.Errorf("expected A to have dependent B, got %v", dependents)
+	}
+
+	// Remove dep
+	store.RemoveDep("orc-bbb", "orc-aaa")
+	blockers, _ = store.GetBlockedBy("orc-bbb")
+	if len(blockers) != 0 {
+		t.Errorf("expected 0 blockers after remove, got %d", len(blockers))
+	}
+}
+
+func TestAddRelation(t *testing.T) {
+	store := testStore(t)
+	store.CreateItem("orc-aaa", "A", "", "task", 2, "", "")
+	store.CreateItem("orc-bbb", "B", "", "task", 2, "", "")
+
+	err := store.AddRelation("orc-aaa", "orc-bbb", "relates_to")
+	if err != nil {
+		t.Fatalf("AddRelation failed: %v", err)
+	}
+
+	rels, _ := store.GetRelations("orc-aaa")
+	if len(rels) != 1 {
+		t.Fatalf("expected 1 relation, got %d", len(rels))
+	}
+	if rels[0].ToID != "orc-bbb" || rels[0].RelType != "relates_to" {
+		t.Errorf("unexpected relation: %+v", rels[0])
+	}
+}
+
+func TestNotes(t *testing.T) {
+	store := testStore(t)
+	store.CreateItem("orc-aaa", "A", "", "task", 2, "", "")
+
+	store.AddNote("orc-aaa", "first note")
+	store.AddNote("orc-aaa", "second note")
+
+	notes, err := store.GetNotes("orc-aaa")
+	if err != nil {
+		t.Fatalf("GetNotes failed: %v", err)
+	}
+	if len(notes) != 2 {
+		t.Fatalf("expected 2 notes, got %d", len(notes))
+	}
+	if notes[0].Content != "first note" || notes[1].Content != "second note" {
+		t.Errorf("notes out of order: %v", notes)
+	}
+}
