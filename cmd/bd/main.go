@@ -38,6 +38,7 @@ func main() {
 			syncCmd(),
 			depCmd(),
 			depsCmd(),
+			migrateCmd(),
 		},
 	}
 
@@ -56,7 +57,14 @@ func openStore() (*db.Store, error) {
 	if err != nil {
 		return nil, err
 	}
-	return db.Open(dbPath)
+	store, err := db.Open(dbPath)
+	if err != nil {
+		return nil, err
+	}
+	if store.NeedsMigration() {
+		return nil, fmt.Errorf("database has old schema — run 'bd migrate' first")
+	}
+	return store, nil
 }
 
 func initCmd() *cli.Command {
@@ -580,6 +588,30 @@ func depsCmd() *cli.Command {
 			defer store.Close()
 
 			return display.Deps(store)
+		},
+	}
+}
+
+func migrateCmd() *cli.Command {
+	return &cli.Command{
+		Name:  "migrate",
+		Usage: "Migrate an old beads database to the new schema",
+		Action: func(ctx context.Context, cmd *cli.Command) error {
+			cwd, err := os.Getwd()
+			if err != nil {
+				return err
+			}
+			dbPath, err := db.FindDB(cwd)
+			if err != nil {
+				return err
+			}
+			store, err := db.Open(dbPath)
+			if err != nil {
+				return err
+			}
+			defer store.Close()
+
+			return store.Migrate()
 		},
 	}
 }
