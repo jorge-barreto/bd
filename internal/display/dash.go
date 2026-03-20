@@ -9,7 +9,7 @@ import (
 
 // Dashboard renders the main dashboard view with epics and their children.
 func Dashboard(store *db.Store, showAll bool) error {
-	allItems, err := store.ListItems(db.ListFilters{})
+	allItems, err := store.ListItems(db.ListFilters{All: true})
 	if err != nil {
 		return err
 	}

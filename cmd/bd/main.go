@@ -173,11 +173,11 @@ func showCmd() *cli.Command {
 				type jsonItem struct {
 					ID           string   `json:"id"`
 					Title        string   `json:"title"`
-					Description  string   `json:"description,omitempty"`
+					Description  string   `json:"description"`
 					Status       string   `json:"status"`
 					Priority     int      `json:"priority"`
 					IssueType    string   `json:"issue_type"`
-					Owner        string   `json:"owner,omitempty"`
+					Owner        string   `json:"owner"`
 					CreatedAt    string   `json:"created_at"`
 					UpdatedAt    string   `json:"updated_at"`
 					Dependencies []string `json:"dependencies"`

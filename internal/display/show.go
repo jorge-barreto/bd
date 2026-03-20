@@ -53,7 +53,7 @@ func Show(store *db.Store, item *model.Item, showAll bool) error {
 	fmt.Printf("  Created:  %s\n", formatDate(item.CreatedAt))
 
 	// Children
-	children, _ := store.ListItems(db.ListFilters{ParentID: item.ID})
+	children, _ := store.ListItems(db.ListFilters{ParentID: item.ID, All: true})
 	var openChildren []model.Item
 	var closedCount int
 	for _, c := range children {
