@@ -441,10 +441,18 @@ func listCmd() *cli.Command {
 			}
 			defer store.Close()
 
+			parentID := cmd.String("parent")
+			if parentID != "" {
+				parentID, err = resolveID(store, parentID)
+				if err != nil {
+					return err
+				}
+			}
+
 			filters := db.ListFilters{
 				Status:   cmd.String("status"),
 				Type:     cmd.String("type"),
-				ParentID: cmd.String("parent"),
+				ParentID: parentID,
 				All:      cmd.Bool("all"),
 			}
 
@@ -476,7 +484,11 @@ func readyCmd() *cli.Command {
 
 			parentID := ""
 			if cmd.NArg() > 0 {
-				parentID = cmd.Args().First()
+				resolved, err := resolveID(store, cmd.Args().First())
+				if err != nil {
+					return err
+				}
+				parentID = resolved
 			}
 
 			items, err := store.ReadyItems(parentID)
