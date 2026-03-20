@@ -110,6 +110,22 @@ func Show(store *db.Store, item *model.Item, showAll bool) error {
 		}
 	}
 
+	// Relations
+	rels, _ := store.GetRelations(item.ID)
+	if len(rels) > 0 {
+		fmt.Println()
+		fmt.Println("  Relations")
+		for _, r := range rels {
+			otherID := r.ToID
+			if otherID == item.ID {
+				otherID = r.FromID
+			}
+			if other, err := store.GetItem(otherID); err == nil {
+				fmt.Printf("  ─── %s %s (%s) [%s]\n", statusIcon(other.Status), other.Title, shortID(other.ID), r.RelType)
+			}
+		}
+	}
+
 	// Description
 	if item.Description != "" {
 		fmt.Println()
