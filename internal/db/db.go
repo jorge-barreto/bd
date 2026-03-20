@@ -261,6 +261,42 @@ func (s *Store) CreateItem(id, title, description, issueType string, priority in
 	return err
 }
 
+// ResolveID resolves a potentially short ID (like "4ho") to a full ID (like "orc-4ho").
+// If the ID already matches an item exactly, it's returned as-is.
+// Otherwise, searches for items whose ID ends with "-{shortID}" or ".{shortID}".
+func (s *Store) ResolveID(id string) (string, error) {
+	// Try exact match first
+	var exists int
+	if err := s.db.QueryRow("SELECT COUNT(*) FROM items WHERE id = ?", id).Scan(&exists); err == nil && exists > 0 {
+		return id, nil
+	}
+
+	// Try suffix match: prefix-{id} or parent.{id}
+	rows, err := s.db.Query(
+		"SELECT id FROM items WHERE id LIKE ? OR id LIKE ?",
+		"%-"+id, "%."+id,
+	)
+	if err != nil {
+		return "", err
+	}
+	defer rows.Close()
+
+	var matches []string
+	for rows.Next() {
+		var fullID string
+		rows.Scan(&fullID)
+		matches = append(matches, fullID)
+	}
+
+	if len(matches) == 1 {
+		return matches[0], nil
+	}
+	if len(matches) > 1 {
+		return "", fmt.Errorf("ambiguous ID %q matches: %s", id, strings.Join(matches, ", "))
+	}
+	return "", fmt.Errorf("item %q not found", id)
+}
+
 // GetItem retrieves a single item by ID.
 func (s *Store) GetItem(id string) (*model.Item, error) {
 	item := &model.Item{}

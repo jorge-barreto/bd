@@ -18,9 +18,9 @@ func List(items []model.Item) {
 		if len(title) > 50 {
 			title = title[:47] + "..."
 		}
-		fmt.Printf("%s %-12s P%d  %-12s %s\n",
+		fmt.Printf("%s %-14s P%d  %-12s %s\n",
 			statusIcon(item.Status),
-			shortID(item.ID),
+			item.ID,
 			item.Priority,
 			item.IssueType,
 			title,

@@ -72,6 +72,11 @@ func openStore() (*db.Store, error) {
 	return store, nil
 }
 
+// resolveID resolves a short or full ID via the store.
+func resolveID(store *db.Store, id string) (string, error) {
+	return store.ResolveID(id)
+}
+
 func initCmd() *cli.Command {
 	return &cli.Command{
 		Name:  "init",
@@ -176,7 +181,10 @@ func showCmd() *cli.Command {
 			}
 			defer store.Close()
 
-			id := cmd.Args().First()
+			id, err := resolveID(store, cmd.Args().First())
+			if err != nil {
+				return err
+			}
 			item, err := store.GetItem(id)
 			if err != nil {
 				return fmt.Errorf("item %q not found", id)
@@ -254,7 +262,10 @@ func updateCmd() *cli.Command {
 			}
 			defer store.Close()
 
-			id := cmd.Args().First()
+			id, err := resolveID(store, cmd.Args().First())
+			if err != nil {
+				return err
+			}
 
 			// Collect and validate field updates first (before side effects)
 			fields := map[string]string{}
@@ -309,7 +320,10 @@ func closeCmd() *cli.Command {
 			}
 			defer store.Close()
 
-			id := cmd.Args().First()
+			id, err := resolveID(store, cmd.Args().First())
+			if err != nil {
+				return err
+			}
 			if err := store.CloseItem(id); err != nil {
 				return err
 			}
@@ -334,7 +348,10 @@ func reopenCmd() *cli.Command {
 			}
 			defer store.Close()
 
-			id := cmd.Args().First()
+			id, err := resolveID(store, cmd.Args().First())
+			if err != nil {
+				return err
+			}
 			if err := store.ReopenItem(id); err != nil {
 				return err
 			}
@@ -359,7 +376,10 @@ func deleteCmd() *cli.Command {
 			}
 			defer store.Close()
 
-			id := cmd.Args().First()
+			id, err := resolveID(store, cmd.Args().First())
+			if err != nil {
+				return err
+			}
 			if err := store.DeleteItem(id); err != nil {
 				return err
 			}
