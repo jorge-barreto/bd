@@ -18,6 +18,9 @@ func main() {
 	app := &cli.Command{
 		Name:  "bd",
 		Usage: "A fast, minimal work item tracker",
+		Flags: []cli.Flag{
+			&cli.BoolFlag{Name: "all", Usage: "show closed items"},
+		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			return dashboardAction(ctx, cmd)
 		},
