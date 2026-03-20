@@ -143,12 +143,15 @@ func Deps(store *db.Store) error {
 }
 
 func printDepChain(store *db.Store, item model.Item, depth int) {
+	if depth >= 50 {
+		return
+	}
 	indent := ""
 	for i := 0; i < depth; i++ {
 		indent += "  "
 	}
 
-	children, _ := store.ListItems(db.ListFilters{ParentID: item.ID})
+	children, _ := store.ListItems(db.ListFilters{ParentID: item.ID, All: true})
 	openCount := 0
 	for _, c := range children {
 		if c.Status != "closed" {

@@ -1,9 +1,11 @@
 package db
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 	"testing"
 )
 
@@ -482,6 +484,36 @@ func TestNotes(t *testing.T) {
 	}
 	if notes[0].Content != "first note" || notes[1].Content != "second note" {
 		t.Errorf("notes out of order: %v", notes)
+	}
+}
+
+func TestCreateItemValidatesParentExists(t *testing.T) {
+	store := testStore(t)
+	err := store.CreateItem("t-aaa", "Orphan", "", "task", 2, "nonexistent", "")
+	if err == nil {
+		t.Fatal("expected error for nonexistent parent")
+	}
+	if !strings.Contains(err.Error(), "parent") {
+		t.Errorf("error should mention parent, got: %v", err)
+	}
+}
+
+func TestGenerateIDNoCollision(t *testing.T) {
+	store := testStore(t)
+	store.SetConfig("prefix", "t")
+
+	// Generate many IDs, ensure no duplicates
+	seen := map[string]bool{}
+	for i := 0; i < 100; i++ {
+		id, err := store.GenerateID("")
+		if err != nil {
+			t.Fatalf("GenerateID failed on attempt %d: %v", i, err)
+		}
+		if seen[id] {
+			t.Fatalf("duplicate ID generated: %s", id)
+		}
+		seen[id] = true
+		store.CreateItem(id, fmt.Sprintf("Item %d", i), "", "task", 2, "", "")
 	}
 }
 

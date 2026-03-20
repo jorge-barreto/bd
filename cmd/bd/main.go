@@ -98,7 +98,7 @@ func createCmd() *cli.Command {
 			&cli.StringFlag{Name: "type", Value: "task"},
 			&cli.IntFlag{Name: "priority", Aliases: []string{"p"}, Value: 2},
 			&cli.StringFlag{Name: "parent"},
-			&cli.StringFlag{Name: "d", Usage: "description"},
+			&cli.StringFlag{Name: "description", Aliases: []string{"d"}},
 			&cli.StringFlag{Name: "owner"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
@@ -122,7 +122,7 @@ func createCmd() *cli.Command {
 			err = store.CreateItem(
 				id,
 				cmd.String("title"),
-				cmd.String("d"),
+				cmd.String("description"),
 				cmd.String("type"),
 				int(cmd.Int("priority")),
 				parentID,

@@ -64,7 +64,7 @@ CREATE TABLE IF NOT EXISTS config (
 // Init creates the .beads directory and database at the given root path.
 func Init(root string) (*Store, error) {
 	beadsDir := filepath.Join(root, ".beads")
-	if err := os.MkdirAll(beadsDir, 0o755); err != nil {
+	if err := os.MkdirAll(beadsDir, 0o700); err != nil {
 		return nil, fmt.Errorf("creating .beads directory: %w", err)
 	}
 
@@ -154,7 +154,15 @@ func (s *Store) GenerateID(parentID string) (string, error) {
 		if prefix == "" {
 			prefix = "orc"
 		}
-		return prefix + "-" + randomAlphanum(3), nil
+		for attempt := 0; attempt < 10; attempt++ {
+			id := prefix + "-" + randomAlphanum(3)
+			var exists int
+			err := s.db.QueryRow("SELECT COUNT(*) FROM items WHERE id = ?", id).Scan(&exists)
+			if err != nil || exists == 0 {
+				return id, nil
+			}
+		}
+		return "", fmt.Errorf("failed to generate unique ID after 10 attempts")
 	}
 
 	// Find max existing child sequence number
@@ -235,6 +243,11 @@ func (s *Store) CreateItem(id, title, description, issueType string, priority in
 	}
 	if err := validatePriority(priority); err != nil {
 		return err
+	}
+	if parentID != "" {
+		if _, err := s.GetItem(parentID); err != nil {
+			return fmt.Errorf("parent %q not found", parentID)
+		}
 	}
 	now := time.Now().UTC().Format(time.RFC3339)
 	_, err := s.db.Exec(
@@ -339,23 +352,42 @@ func (s *Store) ReopenItem(id string) error {
 func (s *Store) DeleteItem(id string) error {
 	// Collect all IDs to delete (item + descendants)
 	ids := []string{id}
-	s.collectChildren(id, &ids)
+	s.collectChildren(id, &ids, 0)
+
+	tx, err := s.db.Begin()
+	if err != nil {
+		return fmt.Errorf("beginning transaction: %w", err)
+	}
+	defer tx.Rollback()
 
 	for _, itemID := range ids {
-		s.db.Exec("DELETE FROM notes WHERE item_id = ?", itemID)
-		s.db.Exec("DELETE FROM dependencies WHERE blocked_id = ? OR blocker_id = ?", itemID, itemID)
-		s.db.Exec("DELETE FROM relations WHERE from_id = ? OR to_id = ?", itemID, itemID)
+		if _, err := tx.Exec("DELETE FROM notes WHERE item_id = ?", itemID); err != nil {
+			return fmt.Errorf("deleting notes for %s: %w", itemID, err)
+		}
+		if _, err := tx.Exec("DELETE FROM dependencies WHERE blocked_id = ? OR blocker_id = ?", itemID, itemID); err != nil {
+			return fmt.Errorf("deleting dependencies for %s: %w", itemID, err)
+		}
+		if _, err := tx.Exec("DELETE FROM relations WHERE from_id = ? OR to_id = ?", itemID, itemID); err != nil {
+			return fmt.Errorf("deleting relations for %s: %w", itemID, err)
+		}
 	}
 
 	// Delete children first (leaf-to-root) to satisfy FK constraints
 	for i := len(ids) - 1; i >= 0; i-- {
-		s.db.Exec("DELETE FROM items WHERE id = ?", ids[i])
+		if _, err := tx.Exec("DELETE FROM items WHERE id = ?", ids[i]); err != nil {
+			return fmt.Errorf("deleting item %s: %w", ids[i], err)
+		}
 	}
 
-	return nil
+	return tx.Commit()
 }
 
-func (s *Store) collectChildren(parentID string, ids *[]string) {
+const maxRecursionDepth = 50
+
+func (s *Store) collectChildren(parentID string, ids *[]string, depth int) {
+	if depth >= maxRecursionDepth {
+		return
+	}
 	rows, err := s.db.Query("SELECT id FROM items WHERE parent_id = ?", parentID)
 	if err != nil {
 		return
@@ -365,13 +397,15 @@ func (s *Store) collectChildren(parentID string, ids *[]string) {
 	var children []string
 	for rows.Next() {
 		var childID string
-		rows.Scan(&childID)
+		if err := rows.Scan(&childID); err != nil {
+			continue
+		}
 		children = append(children, childID)
 	}
 
 	for _, child := range children {
 		*ids = append(*ids, child)
-		s.collectChildren(child, ids)
+		s.collectChildren(child, ids, depth+1)
 	}
 }
 
