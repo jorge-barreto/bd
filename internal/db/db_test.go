@@ -227,3 +227,90 @@ func TestGetConfigDefault(t *testing.T) {
 		t.Errorf("GetConfig for missing key = %q, want empty", val)
 	}
 }
+
+func TestUpdateItemStatus(t *testing.T) {
+	store := testStore(t)
+	store.CreateItem("orc-abc", "Test", "", "task", 2, "", "")
+
+	err := store.UpdateItem("orc-abc", map[string]string{"status": "in_progress"})
+	if err != nil {
+		t.Fatalf("UpdateItem failed: %v", err)
+	}
+
+	item, _ := store.GetItem("orc-abc")
+	if item.Status != "in_progress" {
+		t.Errorf("Status = %q, want %q", item.Status, "in_progress")
+	}
+}
+
+func TestCloseItem(t *testing.T) {
+	store := testStore(t)
+	store.CreateItem("orc-abc", "Test", "", "task", 2, "", "")
+
+	err := store.CloseItem("orc-abc")
+	if err != nil {
+		t.Fatalf("CloseItem failed: %v", err)
+	}
+
+	item, _ := store.GetItem("orc-abc")
+	if item.Status != "closed" {
+		t.Errorf("Status = %q, want %q", item.Status, "closed")
+	}
+}
+
+func TestReopenItem(t *testing.T) {
+	store := testStore(t)
+	store.CreateItem("orc-abc", "Test", "", "task", 2, "", "")
+	store.CloseItem("orc-abc")
+
+	err := store.ReopenItem("orc-abc")
+	if err != nil {
+		t.Fatalf("ReopenItem failed: %v", err)
+	}
+
+	item, _ := store.GetItem("orc-abc")
+	if item.Status != "open" {
+		t.Errorf("Status = %q, want %q", item.Status, "open")
+	}
+}
+
+func TestDeleteItem(t *testing.T) {
+	store := testStore(t)
+	store.CreateItem("orc-abc", "Parent", "", "epic", 2, "", "")
+	store.CreateItem("orc-abc.1", "Child", "", "task", 2, "orc-abc", "")
+	store.AddNote("orc-abc", "a note")
+
+	err := store.DeleteItem("orc-abc")
+	if err != nil {
+		t.Fatalf("DeleteItem failed: %v", err)
+	}
+
+	_, err = store.GetItem("orc-abc")
+	if err == nil {
+		t.Error("expected error getting deleted item")
+	}
+
+	// Child should also be deleted
+	_, err = store.GetItem("orc-abc.1")
+	if err == nil {
+		t.Error("expected child to be deleted with parent")
+	}
+}
+
+func TestDeleteItemWithDeps(t *testing.T) {
+	store := testStore(t)
+	store.CreateItem("orc-aaa", "A", "", "task", 2, "", "")
+	store.CreateItem("orc-bbb", "B", "", "task", 2, "", "")
+	store.AddDep("orc-bbb", "orc-aaa")
+
+	err := store.DeleteItem("orc-aaa")
+	if err != nil {
+		t.Fatalf("DeleteItem failed: %v", err)
+	}
+
+	// Dependency should be cleaned up
+	deps, _ := store.GetBlockedBy("orc-bbb")
+	if len(deps) != 0 {
+		t.Errorf("expected 0 blockers after delete, got %d", len(deps))
+	}
+}

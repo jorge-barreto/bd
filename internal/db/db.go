@@ -234,3 +234,175 @@ func nilIfEmpty(s string) interface{} {
 	}
 	return s
 }
+
+// UpdateItem updates the given fields on an item.
+func (s *Store) UpdateItem(id string, fields map[string]string) error {
+	allowed := map[string]bool{
+		"title": true, "description": true, "issue_type": true,
+		"status": true, "priority": true, "owner": true,
+	}
+
+	var sets []string
+	var args []interface{}
+	for k, v := range fields {
+		if !allowed[k] {
+			return fmt.Errorf("unknown field: %s", k)
+		}
+		sets = append(sets, k+" = ?")
+		args = append(args, v)
+	}
+	if len(sets) == 0 {
+		return nil
+	}
+
+	now := time.Now().UTC().Format(time.RFC3339)
+	sets = append(sets, "updated_at = ?")
+	args = append(args, now, id)
+
+	query := "UPDATE items SET " + strings.Join(sets, ", ") + " WHERE id = ?"
+	res, err := s.db.Exec(query, args...)
+	if err != nil {
+		return err
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return fmt.Errorf("item %q not found", id)
+	}
+	return nil
+}
+
+// CloseItem sets an item's status to closed.
+func (s *Store) CloseItem(id string) error {
+	return s.UpdateItem(id, map[string]string{"status": "closed"})
+}
+
+// ReopenItem sets an item's status to open.
+func (s *Store) ReopenItem(id string) error {
+	return s.UpdateItem(id, map[string]string{"status": "open"})
+}
+
+// DeleteItem permanently removes an item and its children, deps, relations, and notes.
+func (s *Store) DeleteItem(id string) error {
+	// Collect all IDs to delete (item + descendants)
+	ids := []string{id}
+	s.collectChildren(id, &ids)
+
+	for _, itemID := range ids {
+		s.db.Exec("DELETE FROM notes WHERE item_id = ?", itemID)
+		s.db.Exec("DELETE FROM dependencies WHERE blocked_id = ? OR blocker_id = ?", itemID, itemID)
+		s.db.Exec("DELETE FROM relations WHERE from_id = ? OR to_id = ?", itemID, itemID)
+	}
+
+	// Delete children first (leaf-to-root) to satisfy FK constraints
+	for i := len(ids) - 1; i >= 0; i-- {
+		s.db.Exec("DELETE FROM items WHERE id = ?", ids[i])
+	}
+
+	return nil
+}
+
+func (s *Store) collectChildren(parentID string, ids *[]string) {
+	rows, err := s.db.Query("SELECT id FROM items WHERE parent_id = ?", parentID)
+	if err != nil {
+		return
+	}
+	defer rows.Close()
+
+	var children []string
+	for rows.Next() {
+		var childID string
+		rows.Scan(&childID)
+		children = append(children, childID)
+	}
+
+	for _, child := range children {
+		*ids = append(*ids, child)
+		s.collectChildren(child, ids)
+	}
+}
+
+// AddDep adds a dependency: blockedID is blocked by blockerID.
+func (s *Store) AddDep(blockedID, blockerID string) error {
+	_, err := s.db.Exec(
+		"INSERT INTO dependencies (blocked_id, blocker_id) VALUES (?, ?)",
+		blockedID, blockerID,
+	)
+	return err
+}
+
+// RemoveDep removes a dependency.
+func (s *Store) RemoveDep(blockedID, blockerID string) error {
+	_, err := s.db.Exec(
+		"DELETE FROM dependencies WHERE blocked_id = ? AND blocker_id = ?",
+		blockedID, blockerID,
+	)
+	return err
+}
+
+// GetBlockedBy returns items that block the given item.
+func (s *Store) GetBlockedBy(itemID string) ([]model.Dependency, error) {
+	rows, err := s.db.Query(
+		"SELECT blocked_id, blocker_id FROM dependencies WHERE blocked_id = ?", itemID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var deps []model.Dependency
+	for rows.Next() {
+		var d model.Dependency
+		rows.Scan(&d.BlockedID, &d.BlockerID)
+		deps = append(deps, d)
+	}
+	return deps, nil
+}
+
+// GetDeps returns items that the given item blocks.
+func (s *Store) GetDeps(itemID string) ([]model.Dependency, error) {
+	rows, err := s.db.Query(
+		"SELECT blocked_id, blocker_id FROM dependencies WHERE blocker_id = ?", itemID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var deps []model.Dependency
+	for rows.Next() {
+		var d model.Dependency
+		rows.Scan(&d.BlockedID, &d.BlockerID)
+		deps = append(deps, d)
+	}
+	return deps, nil
+}
+
+// AddNote appends a note to an item.
+func (s *Store) AddNote(itemID, content string) error {
+	now := time.Now().UTC().Format(time.RFC3339)
+	_, err := s.db.Exec(
+		"INSERT INTO notes (item_id, content, created_at) VALUES (?, ?, ?)",
+		itemID, content, now,
+	)
+	return err
+}
+
+// GetNotes returns all notes for an item in chronological order.
+func (s *Store) GetNotes(itemID string) ([]model.Note, error) {
+	rows, err := s.db.Query(
+		"SELECT id, item_id, content, created_at FROM notes WHERE item_id = ? ORDER BY created_at ASC",
+		itemID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var notes []model.Note
+	for rows.Next() {
+		var n model.Note
+		rows.Scan(&n.ID, &n.ItemID, &n.Content, &n.CreatedAt)
+		notes = append(notes, n)
+	}
+	return notes, nil
+}
