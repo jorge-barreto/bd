@@ -194,12 +194,12 @@ func showCmd() *cli.Command {
 				}
 
 				ji.Dependencies = make([]string, 0)
-				for _, d := range deps {
-					ji.Dependencies = append(ji.Dependencies, d.BlockedID)
+				for _, d := range blockedBy {
+					ji.Dependencies = append(ji.Dependencies, d.BlockerID)
 				}
 				ji.Dependents = make([]string, 0)
-				for _, d := range blockedBy {
-					ji.Dependents = append(ji.Dependents, d.BlockerID)
+				for _, d := range deps {
+					ji.Dependents = append(ji.Dependents, d.BlockedID)
 				}
 
 				enc := json.NewEncoder(os.Stdout)

@@ -98,6 +98,27 @@ func TestE2EDependencyChain(t *testing.T) {
 	}
 }
 
+// TestE2EDependencyDirection verifies GetBlockedBy returns blockers and GetDeps returns dependents
+func TestE2EDependencyDirection(t *testing.T) {
+	store := testStore(t)
+
+	store.CreateItem("t-aaa", "Task A", "", "task", 2, "", "")
+	store.CreateItem("t-bbb", "Task B", "", "task", 2, "", "")
+	store.AddDep("t-bbb", "t-aaa") // B is blocked by A
+
+	// GetBlockedBy(B) should return A as blocker (B's dependencies)
+	blockers, _ := store.GetBlockedBy("t-bbb")
+	if len(blockers) != 1 || blockers[0].BlockerID != "t-aaa" {
+		t.Errorf("B's blockers (dependencies) should be [A], got %v", blockers)
+	}
+
+	// GetDeps(A) should return B as dependent (A blocks B)
+	dependents, _ := store.GetDeps("t-aaa")
+	if len(dependents) != 1 || dependents[0].BlockedID != "t-bbb" {
+		t.Errorf("A's dependents should be [B], got %v", dependents)
+	}
+}
+
 // TestE2EParentChildReady verifies ready scoped to a parent
 func TestE2EParentChildReady(t *testing.T) {
 	store := testStore(t)
