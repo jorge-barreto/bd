@@ -4,7 +4,7 @@ A fast, minimal work item tracker. Drop-in replacement for [beads](https://githu
 
 ## Why
 
-The original beads hangs during `bd create --parent`, ships 276K lines of Go, and requires Dolt for sync nobody uses. `bd` is a clean rewrite that covers the exact CLI surface needed by workflow scripts, backed by a single SQLite file.
+The original beads hangs during `bd create --parent`, ships 276K lines of Go, and requires Dolt for sync nobody uses. `bd` is a clean rewrite covering the exact CLI surface needed by workflow scripts, backed by a single SQLite file. Pure Go, zero CGo — builds and runs anywhere.
 
 ## Install
 
@@ -23,13 +23,65 @@ go build -o bd ./cmd/bd
 ## Quick Start
 
 ```bash
-bd init                          # create .beads/beads.db
-bd create --title="Fix bug" --type=task
-bd list
-bd show <id>
-bd close <id>
+bd init                                    # create .beads/beads.db
+bd create --title="Fix bug" --type=task    # create a work item
+bd create --title="Epic" --type=epic       # create an epic
+bd create --title="Subtask" --parent=<id>  # create a child item
+bd list                                    # list open items
+bd show <id>                               # detail view
+bd close <id>                              # mark done
+bd                                         # dashboard
 ```
 
-## Status
+## Commands
 
-Under active development. See [SPEC.md](SPEC.md) for the full design.
+### Core
+
+| Command | Description |
+|---------|-------------|
+| `bd init` | Initialize database (`.beads/beads.db`) |
+| `bd create --title="" --type= --priority= --parent= -d ""` | Create item |
+| `bd show <id> [--json] [--all]` | Show item details |
+| `bd update <id> --status= --append-notes=""` | Update item fields or add notes |
+| `bd close <id>` | Set status to closed |
+| `bd reopen <id>` | Set status to open |
+| `bd delete <id>` | Permanently remove item and children |
+| `bd list [--status=] [--type=] [--parent=] [--all]` | List items with filters |
+| `bd search "<query>"` | Full-text search on title and description |
+| `bd ready [parent-id] [--json]` | Show items ready to work on |
+| `bd sync` | No-op (prints "nothing to sync") |
+
+### Dependencies
+
+| Command | Description |
+|---------|-------------|
+| `bd dep add <blocked> <blocker>` | Add blocking dependency |
+| `bd dep remove <blocked> <blocker>` | Remove dependency |
+| `bd dep relate <a> <b>` | Add relates_to relationship |
+
+### Display
+
+| Command | Description |
+|---------|-------------|
+| `bd` | Dashboard — epics with children and blocking relationships |
+| `bd show <id>` | Detail view with children tree, deps, notes |
+| `bd deps` | Dependency chain DAG across epics |
+
+## Data Model
+
+- **Items**: id, title, description, type (task/bug/feature/chore/epic), status (open/in_progress/closed), priority (0-4, 0=critical), parent, owner
+- **Dependencies**: blocking relationships between items
+- **Relations**: non-blocking relationships (relates_to, duplicates, supersedes)
+- **Notes**: append-only comments on items
+
+Storage is a single SQLite file at `.beads/beads.db`, located by walking up from cwd (like `.git/`). Override with `BEADS_DIR` env var.
+
+## ID Format
+
+- Top-level: `{prefix}-{3 alphanum}` (e.g., `orc-4ho`)
+- Children: `{parent}.{seq}` (e.g., `orc-4ho.1`, `orc-4ho.1.3`)
+- Prefix defaults to the directory name where `bd init` is run
+
+## License
+
+MIT
