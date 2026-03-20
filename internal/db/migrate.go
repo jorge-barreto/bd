@@ -28,6 +28,9 @@ func (s *Store) Migrate() error {
 		return fmt.Errorf("database does not need migration (no issues table or items table already exists)")
 	}
 
+	// Flush WAL to main database file before backup
+	s.db.Exec("PRAGMA wal_checkpoint(TRUNCATE)")
+
 	// Back up the database
 	bakPath := s.Path + ".bak"
 	if err := copyFile(s.Path, bakPath); err != nil {
@@ -35,26 +38,26 @@ func (s *Store) Migrate() error {
 	}
 	fmt.Printf("Backed up database to %s\n", bakPath)
 
-	// Rename old tables that conflict with new schema
-	s.db.Exec("ALTER TABLE dependencies RENAME TO old_dependencies")
-	s.db.Exec("ALTER TABLE config RENAME TO old_config")
-
-	// Create new tables
-	if _, err := s.db.Exec(schema); err != nil {
-		return fmt.Errorf("creating new schema: %w", err)
-	}
-
+	// Everything happens in a transaction so failure is atomic
 	tx, err := s.db.Begin()
 	if err != nil {
 		return fmt.Errorf("beginning transaction: %w", err)
 	}
 	defer tx.Rollback()
 
+	// Rename old tables that conflict with new schema (inside transaction)
+	tx.Exec("ALTER TABLE dependencies RENAME TO old_dependencies")
+	tx.Exec("ALTER TABLE config RENAME TO old_config")
+
+	// Create new tables
+	if _, err := tx.Exec(schema); err != nil {
+		return fmt.Errorf("creating new schema: %w", err)
+	}
+
 	// Build parent map from old dependencies table
 	parentMap := map[string]string{}
 	rows, err := tx.Query("SELECT issue_id, depends_on_id FROM old_dependencies WHERE type='parent-child'")
 	if err == nil {
-		defer rows.Close()
 		for rows.Next() {
 			var childID, parentID string
 			rows.Scan(&childID, &parentID)
@@ -116,8 +119,20 @@ func (s *Store) Migrate() error {
 	}
 	issueRows.Close()
 
+	// Build set of migrated IDs to detect orphaned parents
+	migratedIDs := map[string]bool{}
+	for _, r := range issues {
+		migratedIDs[r.id] = true
+	}
+
 	for _, r := range issues {
 		parentID := parentMap[r.id]
+		// Clear parent if it wasn't migrated (deleted/tombstone)
+		if parentID != "" && !migratedIDs[parentID] {
+			fmt.Printf("  Warning: clearing parent %s for %s (parent not migrated)\n", parentID, r.id)
+			parentID = ""
+		}
+
 		_, err := tx.Exec(
 			`INSERT INTO items (id, title, description, issue_type, status, priority, parent_id, owner, created_at, updated_at)
 			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -153,7 +168,6 @@ func (s *Store) Migrate() error {
 		depRows.Close()
 
 		for _, d := range deps {
-			// Only migrate deps where both items exist in new table
 			tx.Exec(
 				"INSERT OR IGNORE INTO dependencies (blocked_id, blocker_id) VALUES (?, ?)",
 				d.blocked, d.blocker,
@@ -207,6 +221,7 @@ func normalizeTimestamp(ts string) string {
 	for _, layout := range []string{
 		time.RFC3339,
 		"2006-01-02T15:04:05Z",
+		"2006-01-02T15:04:05",
 		"2006-01-02 15:04:05",
 		"2006-01-02T15:04:05.999999999Z07:00",
 	} {

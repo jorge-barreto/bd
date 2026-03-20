@@ -158,7 +158,10 @@ func (s *Store) GenerateID(parentID string) (string, error) {
 			id := prefix + "-" + randomAlphanum(3)
 			var exists int
 			err := s.db.QueryRow("SELECT COUNT(*) FROM items WHERE id = ?", id).Scan(&exists)
-			if err != nil || exists == 0 {
+			if err != nil {
+				return "", fmt.Errorf("checking ID uniqueness: %w", err)
+			}
+			if exists == 0 {
 				return id, nil
 			}
 		}
@@ -440,7 +443,9 @@ func (s *Store) GetBlockedBy(itemID string) ([]model.Dependency, error) {
 	var deps []model.Dependency
 	for rows.Next() {
 		var d model.Dependency
-		rows.Scan(&d.BlockedID, &d.BlockerID)
+		if err := rows.Scan(&d.BlockedID, &d.BlockerID); err != nil {
+			return nil, fmt.Errorf("scanning dependency: %w", err)
+		}
 		deps = append(deps, d)
 	}
 	return deps, nil
@@ -459,7 +464,9 @@ func (s *Store) GetDeps(itemID string) ([]model.Dependency, error) {
 	var deps []model.Dependency
 	for rows.Next() {
 		var d model.Dependency
-		rows.Scan(&d.BlockedID, &d.BlockerID)
+		if err := rows.Scan(&d.BlockedID, &d.BlockerID); err != nil {
+			return nil, fmt.Errorf("scanning dependency: %w", err)
+		}
 		deps = append(deps, d)
 	}
 	return deps, nil
@@ -488,7 +495,9 @@ func (s *Store) GetRelations(itemID string) ([]model.Relation, error) {
 	var rels []model.Relation
 	for rows.Next() {
 		var r model.Relation
-		rows.Scan(&r.FromID, &r.ToID, &r.RelType)
+		if err := rows.Scan(&r.FromID, &r.ToID, &r.RelType); err != nil {
+			return nil, fmt.Errorf("scanning relation: %w", err)
+		}
 		rels = append(rels, r)
 	}
 	return rels, nil
@@ -569,10 +578,11 @@ func (s *Store) ListItems(f ListFilters) ([]model.Item, error) {
 
 // SearchItems does a full-text search across title and description.
 func (s *Store) SearchItems(query string) ([]model.Item, error) {
-	pattern := "%" + query + "%"
+	escaped := strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(query)
+	pattern := "%" + escaped + "%"
 	rows, err := s.db.Query(
 		`SELECT id, title, description, issue_type, status, priority, parent_id, owner, created_at, updated_at
-		 FROM items WHERE title LIKE ? OR description LIKE ?
+		 FROM items WHERE title LIKE ? ESCAPE '\' OR description LIKE ? ESCAPE '\'
 		 ORDER BY priority ASC, created_at ASC`,
 		pattern, pattern,
 	)

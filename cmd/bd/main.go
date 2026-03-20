@@ -62,6 +62,7 @@ func openStore() (*db.Store, error) {
 		return nil, err
 	}
 	if store.NeedsMigration() {
+		store.Close()
 		return nil, fmt.Errorf("database has old schema — run 'bd migrate' first")
 	}
 	return store, nil
@@ -72,7 +73,10 @@ func initCmd() *cli.Command {
 		Name:  "init",
 		Usage: "Initialize a new beads database",
 		Action: func(ctx context.Context, cmd *cli.Command) error {
-			cwd, _ := os.Getwd()
+			cwd, err := os.Getwd()
+			if err != nil {
+				return fmt.Errorf("getting current directory: %w", err)
+			}
 			store, err := db.Init(cwd)
 			if err != nil {
 				return err
@@ -248,15 +252,7 @@ func updateCmd() *cli.Command {
 
 			id := cmd.Args().First()
 
-			// Handle append-notes
-			if notes := cmd.String("append-notes"); notes != "" {
-				if err := store.AddNote(id, notes); err != nil {
-					return err
-				}
-				fmt.Printf("✓ Added note to %s\n", id)
-			}
-
-			// Collect field updates
+			// Collect and validate field updates first (before side effects)
 			fields := map[string]string{}
 			if v := cmd.String("status"); v != "" {
 				fields["status"] = v
@@ -279,6 +275,14 @@ func updateCmd() *cli.Command {
 					return err
 				}
 				fmt.Printf("✓ Updated %s\n", id)
+			}
+
+			// Append notes after field updates succeed
+			if notes := cmd.String("append-notes"); notes != "" {
+				if err := store.AddNote(id, notes); err != nil {
+					return err
+				}
+				fmt.Printf("✓ Added note to %s\n", id)
 			}
 
 			return nil

@@ -59,7 +59,7 @@ bd                                         # dashboard
 | `bd delete <id>` | Permanently remove item and children |
 | `bd list [--status=] [--type=] [--parent=] [--all]` | List items (hides closed by default) |
 | `bd search "<query>"` | Full-text search on title and description |
-| `bd ready [parent-id] [--json]` | Show items ready to work on |
+| `bd ready [parent-id] [--json]` | Items with status open/in_progress and all blockers closed |
 | `bd migrate` | Migrate old beads database to new schema |
 | `bd sync` | No-op (prints "nothing to sync") |
 

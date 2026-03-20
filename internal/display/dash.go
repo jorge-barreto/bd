@@ -109,7 +109,7 @@ func Dashboard(store *db.Store, showAll bool) error {
 
 // Deps renders the dependency chain DAG across epics.
 func Deps(store *db.Store) error {
-	epics, err := store.ListItems(db.ListFilters{Type: "epic"})
+	epics, err := store.ListItems(db.ListFilters{Type: "epic", All: true})
 	if err != nil {
 		return err
 	}
