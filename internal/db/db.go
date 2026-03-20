@@ -406,3 +406,79 @@ func (s *Store) GetNotes(itemID string) ([]model.Note, error) {
 	}
 	return notes, nil
 }
+
+// ListFilters specifies optional filters for ListItems.
+type ListFilters struct {
+	Status   string
+	Type     string
+	ParentID string
+	All      bool // include closed items
+}
+
+// ListItems returns items matching the given filters.
+func (s *Store) ListItems(f ListFilters) ([]model.Item, error) {
+	query := "SELECT id, title, description, issue_type, status, priority, parent_id, owner, created_at, updated_at FROM items"
+	var conditions []string
+	var args []interface{}
+
+	if f.Status != "" {
+		conditions = append(conditions, "status = ?")
+		args = append(args, f.Status)
+	}
+	if f.Type != "" {
+		conditions = append(conditions, "issue_type = ?")
+		args = append(args, f.Type)
+	}
+	if f.ParentID != "" {
+		conditions = append(conditions, "parent_id = ?")
+		args = append(args, f.ParentID)
+	}
+
+	if len(conditions) > 0 {
+		query += " WHERE " + strings.Join(conditions, " AND ")
+	}
+	query += " ORDER BY priority ASC, created_at ASC"
+
+	rows, err := s.db.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	return scanItems(rows)
+}
+
+// SearchItems does a full-text search across title and description.
+func (s *Store) SearchItems(query string) ([]model.Item, error) {
+	pattern := "%" + query + "%"
+	rows, err := s.db.Query(
+		`SELECT id, title, description, issue_type, status, priority, parent_id, owner, created_at, updated_at
+		 FROM items WHERE title LIKE ? OR description LIKE ?
+		 ORDER BY priority ASC, created_at ASC`,
+		pattern, pattern,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	return scanItems(rows)
+}
+
+func scanItems(rows *sql.Rows) ([]model.Item, error) {
+	var items []model.Item
+	for rows.Next() {
+		var item model.Item
+		var parentID, description, owner sql.NullString
+		err := rows.Scan(&item.ID, &item.Title, &description, &item.IssueType, &item.Status,
+			&item.Priority, &parentID, &owner, &item.CreatedAt, &item.UpdatedAt)
+		if err != nil {
+			return nil, err
+		}
+		item.ParentID = parentID.String
+		item.Description = description.String
+		item.Owner = owner.String
+		items = append(items, item)
+	}
+	return items, nil
+}

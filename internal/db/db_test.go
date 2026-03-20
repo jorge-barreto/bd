@@ -314,3 +314,87 @@ func TestDeleteItemWithDeps(t *testing.T) {
 		t.Errorf("expected 0 blockers after delete, got %d", len(deps))
 	}
 }
+
+func TestListItemsAll(t *testing.T) {
+	store := testStore(t)
+	store.CreateItem("orc-aaa", "A", "", "task", 2, "", "")
+	store.CreateItem("orc-bbb", "B", "", "bug", 1, "", "")
+	store.CreateItem("orc-ccc", "C", "", "epic", 0, "", "")
+
+	items, err := store.ListItems(ListFilters{})
+	if err != nil {
+		t.Fatalf("ListItems failed: %v", err)
+	}
+	if len(items) != 3 {
+		t.Errorf("ListItems returned %d items, want 3", len(items))
+	}
+}
+
+func TestListItemsFilterByStatus(t *testing.T) {
+	store := testStore(t)
+	store.CreateItem("orc-aaa", "Open", "", "task", 2, "", "")
+	store.CreateItem("orc-bbb", "Closed", "", "task", 2, "", "")
+	store.CloseItem("orc-bbb")
+
+	items, _ := store.ListItems(ListFilters{Status: "open"})
+	if len(items) != 1 {
+		t.Errorf("expected 1 open item, got %d", len(items))
+	}
+	if items[0].ID != "orc-aaa" {
+		t.Errorf("expected orc-aaa, got %s", items[0].ID)
+	}
+}
+
+func TestListItemsFilterByType(t *testing.T) {
+	store := testStore(t)
+	store.CreateItem("orc-aaa", "Task", "", "task", 2, "", "")
+	store.CreateItem("orc-bbb", "Epic", "", "epic", 2, "", "")
+
+	items, _ := store.ListItems(ListFilters{Type: "epic"})
+	if len(items) != 1 {
+		t.Errorf("expected 1 epic, got %d", len(items))
+	}
+	if items[0].ID != "orc-bbb" {
+		t.Errorf("expected orc-bbb, got %s", items[0].ID)
+	}
+}
+
+func TestListItemsFilterByParent(t *testing.T) {
+	store := testStore(t)
+	store.CreateItem("orc-aaa", "Parent", "", "epic", 2, "", "")
+	store.CreateItem("orc-aaa.1", "Child", "", "task", 2, "orc-aaa", "")
+	store.CreateItem("orc-bbb", "Other", "", "task", 2, "", "")
+
+	items, _ := store.ListItems(ListFilters{ParentID: "orc-aaa"})
+	if len(items) != 1 {
+		t.Errorf("expected 1 child, got %d", len(items))
+	}
+	if items[0].ID != "orc-aaa.1" {
+		t.Errorf("expected orc-aaa.1, got %s", items[0].ID)
+	}
+}
+
+func TestSearchItems(t *testing.T) {
+	store := testStore(t)
+	store.CreateItem("orc-aaa", "Fix login bug", "Auth fails on Safari", "bug", 1, "", "")
+	store.CreateItem("orc-bbb", "Add dashboard", "New analytics page", "feature", 2, "", "")
+	store.CreateItem("orc-ccc", "Refactor auth", "", "chore", 3, "", "")
+
+	// Search by title
+	items, _ := store.SearchItems("login")
+	if len(items) != 1 || items[0].ID != "orc-aaa" {
+		t.Errorf("search 'login' expected orc-aaa, got %v", items)
+	}
+
+	// Search by description
+	items, _ = store.SearchItems("analytics")
+	if len(items) != 1 || items[0].ID != "orc-bbb" {
+		t.Errorf("search 'analytics' expected orc-bbb, got %v", items)
+	}
+
+	// Search matching multiple
+	items, _ = store.SearchItems("auth")
+	if len(items) != 2 {
+		t.Errorf("search 'auth' expected 2 results, got %d", len(items))
+	}
+}
