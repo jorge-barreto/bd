@@ -511,3 +511,35 @@ func scanItems(rows *sql.Rows) ([]model.Item, error) {
 	}
 	return items, nil
 }
+
+// ReadyItems returns items that are ready to work on.
+// An item is ready if: status is open or in_progress, and all its blockers are closed.
+// If parentID is non-empty, only items with that parent are returned.
+func (s *Store) ReadyItems(parentID string) ([]model.Item, error) {
+	query := `
+		SELECT i.id, i.title, i.description, i.issue_type, i.status, i.priority,
+		       i.parent_id, i.owner, i.created_at, i.updated_at
+		FROM items i
+		WHERE i.status IN ('open', 'in_progress')
+		  AND NOT EXISTS (
+		    SELECT 1 FROM dependencies d
+		    JOIN items blocker ON blocker.id = d.blocker_id
+		    WHERE d.blocked_id = i.id AND blocker.status != 'closed'
+		  )`
+
+	var args []interface{}
+	if parentID != "" {
+		query += " AND i.parent_id = ?"
+		args = append(args, parentID)
+	}
+
+	query += " ORDER BY i.priority ASC, i.created_at ASC"
+
+	rows, err := s.db.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	return scanItems(rows)
+}

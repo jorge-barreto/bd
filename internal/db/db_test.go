@@ -465,3 +465,82 @@ func TestNotes(t *testing.T) {
 		t.Errorf("notes out of order: %v", notes)
 	}
 }
+
+func TestReadyItemsNoBlockers(t *testing.T) {
+	store := testStore(t)
+	store.CreateItem("orc-aaa", "A", "", "task", 2, "", "")
+
+	items, err := store.ReadyItems("")
+	if err != nil {
+		t.Fatalf("ReadyItems failed: %v", err)
+	}
+	if len(items) != 1 || items[0].ID != "orc-aaa" {
+		t.Errorf("expected [orc-aaa], got %v", items)
+	}
+}
+
+func TestReadyItemsWithOpenBlocker(t *testing.T) {
+	store := testStore(t)
+	store.CreateItem("orc-aaa", "Blocker", "", "task", 2, "", "")
+	store.CreateItem("orc-bbb", "Blocked", "", "task", 2, "", "")
+	store.AddDep("orc-bbb", "orc-aaa")
+
+	items, _ := store.ReadyItems("")
+	// Only A should be ready, B is blocked
+	if len(items) != 1 || items[0].ID != "orc-aaa" {
+		t.Errorf("expected [orc-aaa], got %v", items)
+	}
+}
+
+func TestReadyItemsBlockerClosed(t *testing.T) {
+	store := testStore(t)
+	store.CreateItem("orc-aaa", "Blocker", "", "task", 2, "", "")
+	store.CreateItem("orc-bbb", "Blocked", "", "task", 2, "", "")
+	store.AddDep("orc-bbb", "orc-aaa")
+	store.CloseItem("orc-aaa")
+
+	items, _ := store.ReadyItems("")
+	// B should now be ready (A is closed), A should not appear (closed)
+	if len(items) != 1 || items[0].ID != "orc-bbb" {
+		t.Errorf("expected [orc-bbb], got %v", items)
+	}
+}
+
+func TestReadyItemsScopedToParent(t *testing.T) {
+	store := testStore(t)
+	store.CreateItem("orc-aaa", "Epic", "", "epic", 2, "", "")
+	store.CreateItem("orc-aaa.1", "Child 1", "", "task", 2, "orc-aaa", "")
+	store.CreateItem("orc-bbb", "Other", "", "task", 2, "", "")
+
+	items, _ := store.ReadyItems("orc-aaa")
+	if len(items) != 1 || items[0].ID != "orc-aaa.1" {
+		t.Errorf("expected [orc-aaa.1], got %v", items)
+	}
+}
+
+func TestReadyItemsSortOrder(t *testing.T) {
+	store := testStore(t)
+	// Create items with different priorities (lower = more important)
+	store.CreateItem("orc-aaa", "Low priority", "", "task", 3, "", "")
+	store.CreateItem("orc-bbb", "High priority", "", "task", 0, "", "")
+	store.CreateItem("orc-ccc", "Medium priority", "", "task", 1, "", "")
+
+	items, _ := store.ReadyItems("")
+	if len(items) != 3 {
+		t.Fatalf("expected 3 items, got %d", len(items))
+	}
+	if items[0].ID != "orc-bbb" || items[1].ID != "orc-ccc" || items[2].ID != "orc-aaa" {
+		t.Errorf("wrong sort order: %s, %s, %s", items[0].ID, items[1].ID, items[2].ID)
+	}
+}
+
+func TestReadyItemsIncludesInProgress(t *testing.T) {
+	store := testStore(t)
+	store.CreateItem("orc-aaa", "In Progress", "", "task", 2, "", "")
+	store.UpdateItem("orc-aaa", map[string]string{"status": "in_progress"})
+
+	items, _ := store.ReadyItems("")
+	if len(items) != 1 || items[0].ID != "orc-aaa" {
+		t.Errorf("expected in_progress item to be ready, got %v", items)
+	}
+}
