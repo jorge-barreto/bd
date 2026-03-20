@@ -35,7 +35,7 @@ func Dashboard(store *db.Store, showAll bool) error {
 	}
 
 	if len(epics) > 0 {
-		fmt.Println("EPICS")
+		fmt.Printf("%-52s %s\n", "EPICS", "status")
 		fmt.Println(separator)
 
 		for _, epic := range epics {

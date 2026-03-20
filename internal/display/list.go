@@ -20,7 +20,7 @@ func List(items []model.Item) {
 		}
 		fmt.Printf("%s %-12s P%d  %-12s %s\n",
 			statusIcon(item.Status),
-			item.ID,
+			shortID(item.ID),
 			item.Priority,
 			item.IssueType,
 			title,
