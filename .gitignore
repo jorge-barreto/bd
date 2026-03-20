@@ -1,0 +1,14 @@
+# Binary
+bd
+
+# Database
+.beads/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
