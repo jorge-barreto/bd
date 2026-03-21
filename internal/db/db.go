@@ -614,7 +614,7 @@ func (s *Store) ListItems(f ListFilters) ([]model.Item, error) {
 		conditions = append(conditions, "status != 'closed'")
 	}
 	if f.Type == "orphan" {
-		conditions = append(conditions, "parent_id = ''")
+		conditions = append(conditions, "(parent_id IS NULL OR parent_id = '')")
 		conditions = append(conditions, "issue_type != 'epic'")
 	} else if f.Type != "" {
 		conditions = append(conditions, "issue_type = ?")
