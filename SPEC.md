@@ -91,6 +91,7 @@ bd reopen <id>                             # set status=open
 bd delete <id>                             # permanent remove
 bd dep remove <blocked> <blocker>          # remove dependency
 bd list [--status=] [--type=] [--parent=]  # filtered list
+bd docs                                    # print command reference for agents and humans
 ```
 
 ### Display commands (folded in from bdv)

@@ -61,6 +61,7 @@ bd                                         # dashboard
 | `bd search "<query>"` | Full-text search on title and description |
 | `bd ready [parent-id] [--json]` | Items with status open/in_progress and all blockers closed |
 | `bd migrate` | Migrate old beads database to new schema |
+| `bd docs` | Print command reference for agents and humans |
 | `bd sync` | No-op (prints "nothing to sync") |
 
 **Flag aliases:** `--title` / `-t`, `--priority` / `-p`, `--description` / `-d`

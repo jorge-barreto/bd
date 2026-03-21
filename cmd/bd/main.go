@@ -25,7 +25,7 @@ func getVersion() string {
 func main() {
 	app := &cli.Command{
 		Name:    "bd",
-		Usage:   "A fast, minimal work item tracker",
+		Usage:   "A fast, minimal work item tracker — run 'bd docs' for full reference",
 		Version: getVersion(),
 		Flags: []cli.Flag{
 			&cli.BoolFlag{Name: "all", Usage: "show closed items"},
@@ -51,6 +51,7 @@ func main() {
 			syncCmd(),
 			depCmd(),
 			depsCmd(),
+			docsCmd(),
 			migrateCmd(),
 		},
 	}
@@ -293,7 +294,6 @@ func updateCmd() *cli.Command {
 			if v := cmd.String("owner"); v != "" {
 				fields["owner"] = v
 			}
-
 			if len(fields) > 0 {
 				if err := store.UpdateItem(id, fields); err != nil {
 					return err
@@ -661,6 +661,52 @@ func migrateCmd() *cli.Command {
 			defer store.Close()
 
 			return store.Migrate()
+		},
+	}
+}
+
+const docsText = `bd — A fast, minimal work item tracker
+
+COMMANDS
+  bd                                     Dashboard: epics, open children, blocking relationships
+  bd create --title="..." [flags]        Create a work item
+    --type=task                          task, bug, feature, chore, epic (default: task)
+    --priority=2                         0-4, 0=critical (default: 2)
+    --parent=<id>                        Create as child of parent
+    -d "..."                             Description
+  bd show <id>                           Detail view: fields, children, deps, notes
+  bd show <id> --json                    JSON output (array of one item with dependencies/dependents)
+  bd update <id> [flags]                 Update fields: --status, --title, --type, --priority, --owner
+  bd update <id> --append-notes="..."    Add a note
+  bd close <id>                          Set status=closed
+  bd reopen <id>                         Set status=open
+  bd delete <id>                         Permanently remove an item
+  bd list [--status=] [--type=] [--parent=] [--all]
+  bd ready [parent-id]                   Items with no open blockers, sorted by priority
+  bd ready [parent-id] --json            JSON: {total, items: [{id, title, status, priority, issue_type, parent_id}]}
+  bd search "<query>"                    Full-text search on title and description
+  bd dep add <blocked> <blocker>         Declare that <blocked> is blocked by <blocker>
+  bd dep remove <blocked> <blocker>      Remove a dependency
+  bd dep relate <a> <b>                  Add a relates_to relation
+  bd deps                                Show dependency chain DAG across epics
+
+IDS
+  Top-level: {prefix}-{3 alphanum}       e.g. orc-4ho
+  Children:  {parent}.{seq}              e.g. orc-4ho.1, orc-4ho.1.3
+  Short IDs accepted everywhere          e.g. 4ho instead of orc-4ho
+
+STORAGE
+  .beads/beads.db (SQLite). Located by walking up from cwd. Override with BEADS_DIR env var.
+  Initialize with: bd init
+`
+
+func docsCmd() *cli.Command {
+	return &cli.Command{
+		Name:  "docs",
+		Usage: "Print command reference for agents and humans",
+		Action: func(ctx context.Context, cmd *cli.Command) error {
+			fmt.Print(docsText)
+			return nil
 		},
 	}
 }
