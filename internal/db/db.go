@@ -326,7 +326,7 @@ func nilIfEmpty(s string) interface{} {
 func (s *Store) UpdateItem(id string, fields map[string]string) error {
 	allowed := map[string]bool{
 		"title": true, "description": true, "issue_type": true,
-		"status": true, "priority": true, "owner": true,
+		"status": true, "priority": true, "owner": true, "parent_id": true,
 	}
 
 	var sets []string

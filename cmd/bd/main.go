@@ -261,6 +261,7 @@ func updateCmd() *cli.Command {
 			&cli.StringFlag{Name: "priority"},
 			&cli.StringFlag{Name: "owner"},
 			&cli.StringFlag{Name: "append-notes"},
+			&cli.StringFlag{Name: "parent"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			if cmd.NArg() < 1 {
@@ -294,6 +295,14 @@ func updateCmd() *cli.Command {
 			if v := cmd.String("owner"); v != "" {
 				fields["owner"] = v
 			}
+			if v := cmd.String("parent"); v != "" {
+				parentID, err := resolveID(store, v)
+				if err != nil {
+					return err
+				}
+				fields["parent_id"] = parentID
+			}
+
 			if len(fields) > 0 {
 				if err := store.UpdateItem(id, fields); err != nil {
 					return err
@@ -676,7 +685,7 @@ COMMANDS
     -d "..."                             Description
   bd show <id>                           Detail view: fields, children, deps, notes
   bd show <id> --json                    JSON output (array of one item with dependencies/dependents)
-  bd update <id> [flags]                 Update fields: --status, --title, --type, --priority, --owner
+  bd update <id> [flags]                 Update fields: --status, --title, --type, --priority, --owner, --parent
   bd update <id> --append-notes="..."    Add a note
   bd close <id>                          Set status=closed
   bd reopen <id>                         Set status=open
