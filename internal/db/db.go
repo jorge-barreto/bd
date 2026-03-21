@@ -613,7 +613,10 @@ func (s *Store) ListItems(f ListFilters) ([]model.Item, error) {
 	} else if !f.All {
 		conditions = append(conditions, "status != 'closed'")
 	}
-	if f.Type != "" {
+	if f.Type == "orphan" {
+		conditions = append(conditions, "parent_id = ''")
+		conditions = append(conditions, "issue_type != 'epic'")
+	} else if f.Type != "" {
 		conditions = append(conditions, "issue_type = ?")
 		args = append(args, f.Type)
 	}

@@ -444,7 +444,7 @@ func listCmd() *cli.Command {
 		Flags: []cli.Flag{
 			&cli.BoolFlag{Name: "all", Usage: "include closed items"},
 			&cli.StringFlag{Name: "status"},
-			&cli.StringFlag{Name: "type"},
+			&cli.StringFlag{Name: "type", Usage: "filter by type (task, bug, feature, chore, epic, orphan)"},
 			&cli.StringFlag{Name: "parent"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
