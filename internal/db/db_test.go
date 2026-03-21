@@ -110,15 +110,15 @@ func TestGenerateIDTopLevel(t *testing.T) {
 	store := testStore(t)
 	store.SetConfig("prefix", "orc")
 
-	id, err := store.GenerateID("")
+	id, err := store.GenerateID("", "Test Item", "", "")
 	if err != nil {
 		t.Fatalf("GenerateID failed: %v", err)
 	}
 
-	// Should match pattern: orc-{3 alphanum}
-	matched, _ := regexp.MatchString(`^orc-[a-z0-9]{3}$`, id)
+	// Should match pattern: orc-{3-8 alphanum}
+	matched, _ := regexp.MatchString(`^orc-[a-z0-9]{3,8}$`, id)
 	if !matched {
-		t.Errorf("ID %q does not match pattern orc-XXX", id)
+		t.Errorf("ID %q does not match pattern orc-{3-8 alphanum}", id)
 	}
 }
 
@@ -127,11 +127,11 @@ func TestGenerateIDChild(t *testing.T) {
 	store.SetConfig("prefix", "orc")
 
 	// Create a parent item first
-	parentID, _ := store.GenerateID("")
+	parentID, _ := store.GenerateID("", "Parent", "", "")
 	store.CreateItem(parentID, "Parent", "", "epic", 2, "", "")
 
 	// First child should be parentID.1
-	childID, err := store.GenerateID(parentID)
+	childID, err := store.GenerateID(parentID, "Child 1", "", "")
 	if err != nil {
 		t.Fatalf("GenerateID child failed: %v", err)
 	}
@@ -141,7 +141,7 @@ func TestGenerateIDChild(t *testing.T) {
 
 	// Create the child, then next should be .2
 	store.CreateItem(childID, "Child 1", "", "task", 2, parentID, "")
-	childID2, _ := store.GenerateID(parentID)
+	childID2, _ := store.GenerateID(parentID, "Child 2", "", "")
 	if childID2 != parentID+".2" {
 		t.Errorf("second child ID = %q, want %q", childID2, parentID+".2")
 	}
@@ -505,7 +505,8 @@ func TestGenerateIDNoCollision(t *testing.T) {
 	// Generate many IDs, ensure no duplicates
 	seen := map[string]bool{}
 	for i := 0; i < 100; i++ {
-		id, err := store.GenerateID("")
+		title := fmt.Sprintf("Item %d", i)
+		id, err := store.GenerateID("", title, "", "")
 		if err != nil {
 			t.Fatalf("GenerateID failed on attempt %d: %v", i, err)
 		}
@@ -513,7 +514,7 @@ func TestGenerateIDNoCollision(t *testing.T) {
 			t.Fatalf("duplicate ID generated: %s", id)
 		}
 		seen[id] = true
-		store.CreateItem(id, fmt.Sprintf("Item %d", i), "", "task", 2, "", "")
+		store.CreateItem(id, title, "", "task", 2, "", "")
 	}
 }
 

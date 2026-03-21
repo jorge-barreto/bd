@@ -1,16 +1,15 @@
 package db
 
 import (
-	"crypto/rand"
 	"database/sql"
 	"fmt"
-	"math/big"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/jorge-barreto/bd/internal/idgen"
 	"github.com/jorge-barreto/bd/internal/model"
 	_ "modernc.org/sqlite"
 )
@@ -135,37 +134,12 @@ func FindDB(startDir string) (string, error) {
 	return "", fmt.Errorf("no .beads/beads.db found (searched up from %s)", startDir)
 }
 
-const alphanum = "abcdefghijklmnopqrstuvwxyz0123456789"
-
-func randomAlphanum(n int) string {
-	b := make([]byte, n)
-	for i := range b {
-		idx, _ := rand.Int(rand.Reader, big.NewInt(int64(len(alphanum))))
-		b[i] = alphanum[idx.Int64()]
-	}
-	return string(b)
-}
-
 // GenerateID creates a new ID. If parentID is empty, generates a top-level ID
-// using the configured prefix. Otherwise generates a child ID as parentID.{seq}.
-func (s *Store) GenerateID(parentID string) (string, error) {
+// using an adaptive-length SHA-256 hash of the item's content. Otherwise
+// generates a child ID as parentID.{seq}.
+func (s *Store) GenerateID(parentID, title, desc, owner string) (string, error) {
 	if parentID == "" {
-		prefix, _ := s.GetConfig("prefix")
-		if prefix == "" {
-			prefix = "orc"
-		}
-		for attempt := 0; attempt < 10; attempt++ {
-			id := prefix + "-" + randomAlphanum(3)
-			var exists int
-			err := s.db.QueryRow("SELECT COUNT(*) FROM items WHERE id = ?", id).Scan(&exists)
-			if err != nil {
-				return "", fmt.Errorf("checking ID uniqueness: %w", err)
-			}
-			if exists == 0 {
-				return id, nil
-			}
-		}
-		return "", fmt.Errorf("failed to generate unique ID after 10 attempts")
+		return s.generateTopLevelID(title, desc, owner)
 	}
 
 	// Find max existing child sequence number
@@ -179,7 +153,6 @@ func (s *Store) GenerateID(parentID string) (string, error) {
 	for rows.Next() {
 		var childID string
 		rows.Scan(&childID)
-		// Extract the last segment after the last "."
 		parts := strings.Split(childID, ".")
 		if len(parts) > 0 {
 			if seq, err := strconv.Atoi(parts[len(parts)-1]); err == nil && seq > maxSeq {
@@ -189,6 +162,57 @@ func (s *Store) GenerateID(parentID string) (string, error) {
 	}
 
 	return parentID + "." + strconv.Itoa(maxSeq+1), nil
+}
+
+func (s *Store) generateTopLevelID(title, desc, owner string) (string, error) {
+	prefix, _ := s.GetConfig("prefix")
+	if prefix == "" {
+		prefix = "orc"
+	}
+
+	minLen := 3
+	maxLen := 8
+	maxProb := 0.25
+
+	if v, _ := s.GetConfig("min_hash_length"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			minLen = n
+		}
+	}
+	if v, _ := s.GetConfig("max_hash_length"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			maxLen = n
+		}
+	}
+	if v, _ := s.GetConfig("max_collision_prob"); v != "" {
+		if f, err := strconv.ParseFloat(v, 64); err == nil {
+			maxProb = f
+		}
+	}
+
+	// Count existing root-level items (no parent) to feed the birthday-paradox formula.
+	var rootCount int
+	if err := s.db.QueryRow("SELECT COUNT(*) FROM items WHERE parent_id IS NULL OR parent_id = ''").Scan(&rootCount); err != nil {
+		return "", fmt.Errorf("counting root items: %w", err)
+	}
+
+	baseLength := idgen.ComputeAdaptiveLength(rootCount, minLen, maxLen, maxProb)
+	createdAt := time.Now().UTC().Format(time.RFC3339Nano)
+
+	for length := baseLength; length <= maxLen; length++ {
+		for nonce := 0; nonce < 10; nonce++ {
+			candidate := idgen.GenerateHashID(prefix, title, desc, owner, createdAt, length, nonce)
+			var exists int
+			if err := s.db.QueryRow("SELECT COUNT(*) FROM items WHERE id = ?", candidate).Scan(&exists); err != nil {
+				return "", fmt.Errorf("checking ID uniqueness: %w", err)
+			}
+			if exists == 0 {
+				return candidate, nil
+			}
+		}
+	}
+
+	return "", fmt.Errorf("failed to generate unique ID after %d attempts", (maxLen-baseLength+1)*10)
 }
 
 // SetConfig sets a configuration value.

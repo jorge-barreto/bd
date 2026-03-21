@@ -13,7 +13,7 @@ func TestE2ERoundTrip(t *testing.T) {
 	store.SetConfig("prefix", "test")
 
 	// Create
-	id, err := store.GenerateID("")
+	id, err := store.GenerateID("", "Round trip task", "A test item", "alice@test.com")
 	if err != nil {
 		t.Fatalf("GenerateID: %v", err)
 	}
