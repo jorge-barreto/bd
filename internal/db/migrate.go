@@ -125,19 +125,13 @@ func (s *Store) Migrate() error {
 		migratedIDs[r.id] = true
 	}
 
+	// Pass 1: Insert all items without parent_id to avoid FK ordering issues
 	for _, r := range issues {
-		parentID := parentMap[r.id]
-		// Clear parent if it wasn't migrated (deleted/tombstone)
-		if parentID != "" && !migratedIDs[parentID] {
-			fmt.Printf("  Warning: clearing parent %s for %s (parent not migrated)\n", parentID, r.id)
-			parentID = ""
-		}
-
 		_, err := tx.Exec(
-			`INSERT INTO items (id, title, description, issue_type, status, priority, parent_id, owner, created_at, updated_at)
-			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			`INSERT INTO items (id, title, description, issue_type, status, priority, owner, created_at, updated_at)
+			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			r.id, r.title, r.description, r.issueType, r.status, r.priority,
-			nilIfEmpty(parentID), r.owner, r.createdAt, r.updatedAt,
+			r.owner, r.createdAt, r.updatedAt,
 		)
 		if err != nil {
 			return fmt.Errorf("inserting item %s: %w", r.id, err)
@@ -153,6 +147,21 @@ func (s *Store) Migrate() error {
 			if err != nil {
 				return fmt.Errorf("inserting note for %s: %w", r.id, err)
 			}
+		}
+	}
+
+	// Pass 2: Set parent_id now that all items exist
+	for _, r := range issues {
+		parentID := parentMap[r.id]
+		if parentID == "" {
+			continue
+		}
+		if !migratedIDs[parentID] {
+			fmt.Printf("  Warning: clearing parent %s for %s (parent not migrated)\n", parentID, r.id)
+			continue
+		}
+		if _, err := tx.Exec("UPDATE items SET parent_id = ? WHERE id = ?", parentID, r.id); err != nil {
+			return fmt.Errorf("setting parent for %s: %w", r.id, err)
 		}
 	}
 

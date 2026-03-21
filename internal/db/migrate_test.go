@@ -188,6 +188,81 @@ func TestMigrateItems(t *testing.T) {
 	}
 }
 
+func TestMigrateChildBeforeParent(t *testing.T) {
+	dir := t.TempDir()
+	beadsDir := filepath.Join(dir, ".beads")
+	if err := os.MkdirAll(beadsDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	dbPath := filepath.Join(beadsDir, "beads.db")
+
+	db, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	_, err = db.Exec(`
+		CREATE TABLE issues (
+			id TEXT PRIMARY KEY,
+			title TEXT NOT NULL,
+			description TEXT NOT NULL DEFAULT '',
+			notes TEXT NOT NULL DEFAULT '',
+			status TEXT NOT NULL DEFAULT 'open',
+			priority INTEGER NOT NULL DEFAULT 2,
+			issue_type TEXT NOT NULL DEFAULT 'task',
+			owner TEXT DEFAULT '',
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			deleted_at DATETIME
+		);
+		CREATE TABLE dependencies (
+			issue_id TEXT NOT NULL,
+			depends_on_id TEXT NOT NULL,
+			type TEXT NOT NULL DEFAULT 'blocks',
+			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+			created_by TEXT NOT NULL DEFAULT '',
+			PRIMARY KEY (issue_id, depends_on_id, type),
+			FOREIGN KEY (issue_id) REFERENCES issues(id) ON DELETE CASCADE
+		);
+		CREATE TABLE config (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Child ID sorts before parent ID alphabetically
+	_, err = db.Exec(`
+		INSERT INTO issues (id, title, issue_type) VALUES
+			('aaa-child', 'Child Task', 'task'),
+			('zzz-parent', 'Parent Epic', 'epic');
+		INSERT INTO dependencies (issue_id, depends_on_id, type, created_by)
+		VALUES ('aaa-child', 'zzz-parent', 'parent-child', '');
+		INSERT INTO config (key, value) VALUES ('prefix', 'test');
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	store, err := Open(dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+
+	if err := store.Migrate(); err != nil {
+		t.Fatalf("Migrate failed with child-before-parent ordering: %v", err)
+	}
+
+	child, err := store.GetItem("aaa-child")
+	if err != nil {
+		t.Fatalf("GetItem aaa-child: %v", err)
+	}
+	if child.ParentID != "zzz-parent" {
+		t.Errorf("parent_id = %q, want 'zzz-parent'", child.ParentID)
+	}
+}
+
 func TestMigrateBackup(t *testing.T) {
 	dir := t.TempDir()
 	dbPath := createOldSchema(t, dir)
