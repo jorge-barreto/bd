@@ -140,14 +140,14 @@ func createCmd() *cli.Command {
 			defer store.Close()
 
 			parentID := cmd.String("parent")
-			id, err := store.GenerateID(parentID)
-			if err != nil {
-				return err
-			}
-
 			owner := cmd.String("owner")
 			if owner == "" {
 				owner, _ = store.GetConfig("owner")
+			}
+
+			id, err := store.GenerateID(parentID, cmd.String("title"), cmd.String("description"), owner)
+			if err != nil {
+				return err
 			}
 
 			err = store.CreateItem(
@@ -259,6 +259,7 @@ func updateCmd() *cli.Command {
 			&cli.StringFlag{Name: "title"},
 			&cli.StringFlag{Name: "type"},
 			&cli.StringFlag{Name: "priority"},
+			&cli.StringFlag{Name: "description", Aliases: []string{"d"}},
 			&cli.StringFlag{Name: "owner"},
 			&cli.StringFlag{Name: "append-notes"},
 			&cli.StringFlag{Name: "parent"},
@@ -285,6 +286,9 @@ func updateCmd() *cli.Command {
 			}
 			if v := cmd.String("title"); v != "" {
 				fields["title"] = v
+			}
+			if v := cmd.String("description"); v != "" {
+				fields["description"] = v
 			}
 			if v := cmd.String("type"); v != "" {
 				fields["issue_type"] = v
@@ -700,7 +704,7 @@ COMMANDS
   bd deps                                Show dependency chain DAG across epics
 
 IDS
-  Top-level: {prefix}-{3 alphanum}       e.g. orc-4ho
+  Top-level: {prefix}-{3-8 alphanum}     adaptive length, grows with DB size
   Children:  {parent}.{seq}              e.g. orc-4ho.1, orc-4ho.1.3
   Short IDs accepted everywhere          e.g. 4ho instead of orc-4ho
 
