@@ -76,8 +76,8 @@ func Show(store *db.Store, item *model.Item, showAll bool) error {
 				connector = "└──"
 			}
 			title := c.Title
-			if len(title) > 40 {
-				title = title[:37] + "..."
+			if len(title) > 120 {
+				title = title[:117] + "..."
 			}
 			fmt.Printf("  %s %s %-8s %s\n", connector, statusIcon(c.Status), shortID(c.ID), title)
 		}

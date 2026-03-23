@@ -47,6 +47,7 @@ func main() {
 			deleteCmd(),
 			searchCmd(),
 			listCmd(),
+			treeCmd(),
 			readyCmd(),
 			syncCmd(),
 			depCmd(),
@@ -476,6 +477,39 @@ func listCmd() *cli.Command {
 
 			display.List(items)
 			return nil
+		},
+	}
+}
+
+func treeCmd() *cli.Command {
+	return &cli.Command{
+		Name:      "tree",
+		Usage:     "Show item hierarchy as a tree",
+		ArgsUsage: "<id>",
+		Flags: []cli.Flag{
+			&cli.IntFlag{Name: "depth", Value: 3, Usage: "maximum depth to display"},
+			&cli.BoolFlag{Name: "all", Usage: "show closed items"},
+		},
+		Action: func(ctx context.Context, cmd *cli.Command) error {
+			if cmd.NArg() < 1 {
+				return fmt.Errorf("usage: bd tree <id>")
+			}
+			store, err := openStore()
+			if err != nil {
+				return err
+			}
+			defer store.Close()
+
+			id, err := resolveID(store, cmd.Args().First())
+			if err != nil {
+				return err
+			}
+			item, err := store.GetItem(id)
+			if err != nil {
+				return fmt.Errorf("item %q not found", id)
+			}
+
+			return display.Tree(store, item, int(cmd.Int("depth")), cmd.Bool("all"))
 		},
 	}
 }

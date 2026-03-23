@@ -15,8 +15,8 @@ func List(items []model.Item) {
 
 	for _, item := range items {
 		title := item.Title
-		if len(title) > 50 {
-			title = title[:47] + "..."
+		if len(title) > 120 {
+			title = title[:117] + "..."
 		}
 		fmt.Printf("%s %-14s P%d  %-12s %s\n",
 			statusIcon(item.Status),

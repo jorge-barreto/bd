@@ -64,8 +64,8 @@ func Dashboard(store *db.Store, showAll bool) error {
 					connector = "└──"
 				}
 				title := c.Title
-				if len(title) > 45 {
-					title = title[:42] + "..."
+				if len(title) > 120 {
+					title = title[:117] + "..."
 				}
 				fmt.Printf("  %s %s %-8s %s\n", connector, statusIcon(c.Status), shortID(c.ID), title)
 			}
@@ -97,8 +97,8 @@ func Dashboard(store *db.Store, showAll bool) error {
 				continue
 			}
 			title := item.Title
-			if len(title) > 50 {
-				title = title[:47] + "..."
+			if len(title) > 120 {
+				title = title[:117] + "..."
 			}
 			fmt.Printf("%s %-12s %s\n", statusIcon(item.Status), shortID(item.ID), title)
 		}
