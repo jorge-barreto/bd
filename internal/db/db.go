@@ -628,7 +628,12 @@ func (s *Store) ListItems(f ListFilters) ([]model.Item, error) {
 	if len(conditions) > 0 {
 		query += " WHERE " + strings.Join(conditions, " AND ")
 	}
-	query += " ORDER BY priority ASC, created_at ASC"
+	if f.ParentID != "" {
+		query += " ORDER BY priority ASC, CAST(SUBSTR(id, LENGTH(?) + 2) AS INTEGER) ASC, created_at ASC"
+		args = append(args, f.ParentID)
+	} else {
+		query += " ORDER BY priority ASC, created_at ASC"
+	}
 
 	rows, err := s.db.Query(query, args...)
 	if err != nil {

@@ -34,6 +34,10 @@ func Dashboard(store *db.Store, showAll bool) error {
 		}
 	}
 
+	for k := range childrenByParent {
+		sortItems(childrenByParent[k])
+	}
+
 	if len(epics) > 0 {
 		fmt.Printf("%-52s %s\n", "EPICS", "status")
 		fmt.Println(separator)
