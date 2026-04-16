@@ -52,6 +52,10 @@ func Dashboard(store *db.Store, showAll bool) error {
 				}
 			}
 
+			if epic.Status == "closed" && !showAll {
+				continue
+			}
+
 			fmt.Printf("%s %s (%s)  %d/%d open\n", statusIcon(epic.Status), epic.Title, epic.ID, openCount, totalCount)
 
 			// Show children
